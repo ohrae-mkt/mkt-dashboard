@@ -120,6 +120,13 @@ const CC = { '네이버':'#12b76a','구글':'#3b82f6','당근':'#f97316','자연
              '공식블로그':'#a78bfa','네이버카페':'#22d3ee','체험단':'#f472b6' };
 const AD_CH = ['네이버','구글','당근'];
 const ORG_CH = ['공식블로그','네이버카페','체험단'];
+/* 화면 표시용 채널: 공식블로그·네이버카페·체험단은 '기타'로 합쳐서 보여준다
+   (광고 합계에는 여전히 미포함 — CPA 왜곡 방지) */
+const ETC_MERGE = ['기타', ...ORG_CH];
+const etcAt = i => ETC_MERGE.reduce((s,c) => s + (D.C.ch[c] ? (D.C.ch[c][i]||0) : 0), 0);
+const etcSeries = () => D.W.map((_,i) => etcAt(i));
+const DISP_CH = [...AD_CH, '자연', '기타'];
+const z0 = v => v ? nf(v) : '<span class="muted">–</span>';
 const BIZ9 = ['스카독서실','탁구장','체육시설','공유오피스','공간예약','공공시설','여가시설','요식업','학원','기타'];
 
 /* ── 캠페인 → 업종 (T6 기준표에서 읽어옴) ── */
@@ -304,9 +311,8 @@ function vConsult(){
       {type:'line', label:'상담희망', data:C.ha, borderColor:'#f59e0b', backgroundColor:'#f59e0b', borderDash:[5,4], tension:.35, pointRadius:2, yAxisID:'y1', order:2}
     ]}, options: baseOpt(false, { y1:{ position:'right', ticks:T10, grid:{display:false}, beginAtZero:true } }), plugins:[LBL_EDGE] });
 
-  const chOrder = [...AD_CH, '자연', ...ORG_CH, '기타'].filter(k => C.ch[k]);
-  mk('c_ch', { type:'bar', data:{ labels:L, datasets: chOrder.map(k => ({
-      label:k, data:C.ch[k], backgroundColor:CC[k]||'#ddd', borderRadius:2 })) },
+  mk('c_ch', { type:'bar', data:{ labels:L, datasets: DISP_CH.filter(k => k==='기타' || C.ch[k]).map(k => ({
+      label:k, data: k==='기타' ? etcSeries() : C.ch[k], backgroundColor:CC[k]||'#ddd', borderRadius:2 })) },
     options: baseOpt(true), plugins:[LBL_STACK] });
 
   mk('c_fm', { type:'line', data:{ labels:L, datasets: Object.keys(C.fm).map((k,i) => ({
@@ -321,19 +327,21 @@ function setBiz(r){ BIZ_RANGE = r; vConsult(); }
 
 function bizTable(){
   const {W, C, li, pi} = D;
-  const cols = [...AD_CH, '자연', ...ORG_CH, '기타'];
+  const cols = DISP_CH;
   const names = BIZ9.filter(b => C.bzWk[b]);
   const cell = (cur, prv) => `${nf(cur)} ${cur!==prv ? dv(cur,prv) : ''}`;
   const rowOf = b => { const e = (C.bzWk[b]||{})[W[li]] || {t:0,o:0,y:0,a:0,ch:{}},
                              p = (C.bzWk[b]||{})[W[pi]] || {t:0,o:0,y:0,a:0,ch:{}};
     return `<tr><td>${b}</td><td>${cell(e.t,p.t)}</td><td>${cell(e.o,p.o)}</td><td>${cell(e.y,p.y)}</td>
-      ${cols.map(c => { const v = e.ch[c]||0, q = p.ch[c]||0;
+      ${cols.map(c => { const mg = c==='기타' ? ETC_MERGE : [c];
+        const v = mg.reduce((s,k)=>s+(e.ch[k]||0),0), q = mg.reduce((s,k)=>s+(p.ch[k]||0),0);
         return `<td>${v ? cell(v,q) : '<span class="muted">–</span>'}</td>`; }).join('')}</tr>`; };
   const T = { t:C.tot[li], o:C.o7[li], y:C.hy[li] }, P = { t:C.tot[pi], o:C.o7[pi], y:C.hy[pi] };
   return `<table><thead><tr><th>업종</th><th>전체</th><th>0.7↑</th><th>상담희망</th>
       ${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>
       <tr class="tot"><td>총합계</td><td>${cell(T.t,P.t)}</td><td>${cell(T.o,P.o)}</td><td>${cell(T.y,P.y)}</td>
-      ${cols.map(c => cell(D.C.ch[c]?D.C.ch[c][li]:0, D.C.ch[c]?D.C.ch[c][pi]:0)).map(x=>`<td>${x}</td>`).join('')}</tr>
+      ${cols.map(c => { const mg = c==='기타' ? ETC_MERGE : [c];
+        return cell(mg.reduce((s,k)=>s+(D.C.ch[k]?D.C.ch[k][li]:0),0), mg.reduce((s,k)=>s+(D.C.ch[k]?D.C.ch[k][pi]:0),0)); }).map(x=>`<td>${x}</td>`).join('')}</tr>
       ${names.map(rowOf).join('')}</tbody></table>`;
 }
 
@@ -346,10 +354,11 @@ function drawBiz(){
     const sum = idx.reduce((a,j)=>a+(C.bz[b][j]||0),0);
     return `<div class="bizbox"><div class="hd"><b>${b}</b><span>${nf(sum)}건</span></div>
       <div style="height:130px"><canvas id="bz${i}"></canvas></div></div>`; }).join('');
-  const chOrder = [...AD_CH, '자연', ...ORG_CH, '기타'];
   names.forEach((b,i) => mk('bz'+i, { type:'bar',
-    data:{ labels: idx.map(j=>md(W[j])), datasets: chOrder.filter(c => C.bzCh[b] && C.bzCh[b][c])
-      .map(c => ({ label:c, data: idx.map(j=>C.bzCh[b][c][j]), backgroundColor:CC[c]||'#ddd', borderRadius:1 })) },
+    data:{ labels: idx.map(j=>md(W[j])), datasets: DISP_CH
+      .filter(c => C.bzCh[b] && (c==='기타' ? ETC_MERGE.some(k=>C.bzCh[b][k]) : C.bzCh[b][c]))
+      .map(c => ({ label:c, data: idx.map(j => (c==='기타' ? ETC_MERGE : [c]).reduce((s,k)=>s+((C.bzCh[b][k]||[])[j]||0),0)),
+        backgroundColor:CC[c]||'#ddd', borderRadius:1 })) },
     options: { ...baseOpt(true), plugins:{legend:{display:false}} } }));
 }
 
@@ -366,11 +375,13 @@ function _txt(ctx, s, x, y, col, size, bg){
   ctx.fillStyle = col || '#5b6172'; ctx.fillText(s, x, y);
   ctx.restore();
 }
+/* 데이터셋이 막대인지 */
+const _isBar = (c, ds, di) => (ds.type || c.config.type) === 'bar';
 /* 막대 위에 값 */
 const LBL_BAR = { id:'lblBar', afterDatasetsDraw(c){
   const n = c.data.labels.length, dense = n > 20;
   c.data.datasets.forEach((ds,di) => {
-    if (ds.type === 'line') return;
+    if (!_isBar(c, ds, di)) return;
     const m = c.getDatasetMeta(di); if (m.hidden) return;
     m.data.forEach((el,i) => { const v = ds.data[i];
       if (!v) return;
@@ -378,29 +389,37 @@ const LBL_BAR = { id:'lblBar', afterDatasetsDraw(c){
       _txt(c.ctx, String(Math.round(v)), el.x, el.y - 2, '#8b90a0', dense ? 9 : 10); });
   });
 }};
-/* 누적 막대 총합 */
+/* 누적 막대 총합 — 막대 데이터셋만 합산 */
 const LBL_STACK = { id:'lblStack', afterDatasetsDraw(c){
-  const n = c.data.labels.length, tot = Array(n).fill(0); let top = Array(n).fill(1e9);
-  c.data.datasets.forEach((ds,di) => { const m = c.getDatasetMeta(di); if (m.hidden) return;
-    m.data.forEach((el,i) => { const v = +ds.data[i] || 0; tot[i] += v; if (v > 0) top[i] = Math.min(top[i], el.y); }); });
-  const last = n - 1;
-  tot.forEach((v,i) => { if (!v || top[i] > 1e8) return;
+  const n = c.data.labels.length, tot = Array(n).fill(0), top = Array(n).fill(1e9);
+  c.data.datasets.forEach((ds,di) => {
+    if (!_isBar(c, ds, di)) return;
+    const m = c.getDatasetMeta(di); if (m.hidden) return;
+    m.data.forEach((el,i) => { const v = +ds.data[i] || 0; tot[i] += v;
+      if (v > 0) top[i] = Math.min(top[i], el.y); }); });
+  const last = n - 1, base = c.data.datasets.findIndex((ds,di) => _isBar(c, ds, di));
+  if (base < 0) return;
+  const bm = c.getDatasetMeta(base);
+  tot.forEach((v,i) => { if (!v || top[i] > 1e8 || !bm.data[i]) return;
     const isLast = i === last;
-    _txt(c.ctx, String(Math.round(v)), c.getDatasetMeta(0).data[i].x, top[i] - 2,
+    _txt(c.ctx, String(Math.round(v)), bm.data[i].x, top[i] - 3,
          isLast ? '#fff' : '#5b6172', isLast ? 10 : 9, isLast ? '#1a1d29' : null); });
 }};
-/* 선 위 모든 점에 값 */
+/* 선 위 값 — 선 데이터셋만 · 흰 배지로 겹침 방지 */
 const LBL_LINE = { id:'lblLine', afterDatasetsDraw(c){
   const n = c.data.labels.length, dense = n > 20;
-  c.data.datasets.forEach((ds,di) => { const m = c.getDatasetMeta(di); if (m.hidden) return;
+  c.data.datasets.forEach((ds,di) => {
+    if (_isBar(c, ds, di)) return;
+    const m = c.getDatasetMeta(di); if (m.hidden) return;
     m.data.forEach((el,i) => { const v = ds.data[i];
       if (v == null || v === 0) return;
       if (dense && i % 2) return;
-      _txt(c.ctx, String(Math.round(v)), el.x, el.y - 4, ds.borderColor || '#5b6172', dense ? 9 : 10); }); });
+      _txt(c.ctx, String(Math.round(v)), el.x, el.y - 6,
+           ds.borderColor || '#5b6172', dense ? 9 : 10, 'rgba(255,255,255,.88)'); }); });
 }};
 /* 선의 최고점 · 마지막 값만 (배지) */
 const LBL_EDGE = { id:'lblEdge', afterDatasetsDraw(c){
-  c.data.datasets.forEach((ds,di) => { if (ds.type === 'bar') return;
+  c.data.datasets.forEach((ds,di) => { if (_isBar(c, ds, di)) return;
     const m = c.getDatasetMeta(di); if (m.hidden) return;
     const vals = ds.data.map(v => (v == null ? -1 : v));
     let mx = -1, mi = -1;
@@ -767,58 +786,62 @@ const _row = (label, cur, prv, cls, indent) => {
 function wkCh(){
   const {W, C, li, pi} = D, idx = wkIdx12(), L = idx.map(i => md(W[i]));
   const adS  = i => AD_CH.reduce((s,c) => s + _g(C.ch[c], i), 0);
-  const orgS = i => ORG_CH.reduce((s,c) => s + _g(C.ch[c], i), 0);
-  const etcS = i => _g(C.ch['기타'], i);
   const natS = i => _g(C.ch['자연'], i);
   const T10 = wkIdx10();
+  /* 기타 하위 = MMS·카톡·팝업·AI·TM + 공식블로그·네이버카페·체험단 */
+  const SUBS = {...ETC_SUB};
+  ORG_CH.forEach(c => { if (C.ch[c]) SUBS[c] = C.ch[c]; });
+
+  const rowsHtml = Object.keys(SUBS)
+    .filter(k => _g(SUBS[k],li) || _g(SUBS[k],pi))          // 전주·이번주 모두 0이면 숨김
+    .map(k => _row(k, _g(SUBS[k],li), _g(SUBS[k],pi), '', true)).join('');
 
   const summary = `<table><thead><tr><th>채널</th><th>${md(W[pi])}주 (전주)</th><th>${md(W[li])}주</th>
       <th>증감</th><th>증감%</th></tr></thead><tbody>
     ${_row('광고 합계', adS(li), adS(pi), 'grp')}
-    ${AD_CH.map(c => _row(c, _g(C.ch[c],li), _g(C.ch[c],pi), '', true)).join('')}
-    ${_row('비광고(블로그·카페·체험단)', orgS(li), orgS(pi), 'grp')}
-    ${ORG_CH.filter(c=>C.ch[c]).map(c => _row(c, _g(C.ch[c],li), _g(C.ch[c],pi), '', true)).join('')}
+    ${AD_CH.filter(c => _g(C.ch[c],li) || _g(C.ch[c],pi)).map(c => _row(c, _g(C.ch[c],li), _g(C.ch[c],pi), '', true)).join('')}
     ${_row('자연유입', natS(li), natS(pi), 'lav')}
-    ${_row('기타', etcS(li), etcS(pi), 'lav')}
-    ${Object.keys(ETC_SUB).map(k => _row(k, _g(ETC_SUB[k],li), _g(ETC_SUB[k],pi), '', true)).join('')}
+    ${_row('기타', etcAt(li), etcAt(pi), 'lav')}
+    ${rowsHtml}
     ${_row('전체', C.tot[li], C.tot[pi], 'tot')}</tbody></table>`;
 
   const trTable = `<table><thead><tr><th>채널</th>${T10.map(i=>`<th>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
     <tr class="grp"><td>광고</td>${T10.map(i=>`<td><b>${adS(i)}</b></td>`).join('')}</tr>
-    <tr><td>비광고(블로그·카페·체험단)</td>${T10.map(i=>`<td>${orgS(i)||'<span class="muted">–</span>'}</td>`).join('')}</tr>
-    <tr><td>자연유입</td>${T10.map(i=>`<td>${natS(i)}</td>`).join('')}</tr>
-    <tr><td>mms/카톡/tm/팝업 합계</td>${T10.map(i=>`<td>${etcS(i)||'<span class="muted">–</span>'}</td>`).join('')}</tr>
+    <tr><td>자연유입</td>${T10.map(i=>`<td>${z0(natS(i))}</td>`).join('')}</tr>
+    <tr><td>기타(mms·카톡·팝업·블로그 등)</td>${T10.map(i=>`<td>${z0(etcAt(i))}</td>`).join('')}</tr>
     <tr class="tot"><td>전체</td>${T10.map(i=>`<td>${C.tot[i]}</td>`).join('')}</tr></tbody></table>`;
 
   document.getElementById('wkbody').innerHTML = `
   <div class="card"><h3>최근 12주 채널별 상담인입(스택) + 상담희망 · 0.7↑ 추이</h3>
-    <div class="note">막대 = 채널별 누적 · 선 = 상담희망(네+빠른상담) / 0.7↑ 가망 · 마감된 주만</div>
-    <div style="height:330px"><canvas id="w_stack"></canvas></div></div>
+    <div class="note">막대 = 채널별 누적(막대 위 숫자는 그 주 전체) · 선 = 상담희망(네+빠른상담) / 0.7↑ 가망 · 마감된 주만</div>
+    <div style="height:340px"><canvas id="w_stack"></canvas></div></div>
   <div class="card"><h3>주차별 상담인입 추이</h3><div class="note">채널 그룹 · 최근 ${T10.length}주</div>
     <div class="tblwrap">${trTable}</div></div>
   <div class="card"><h3>전주 대비 채널별 요약</h3>
-    <div class="note">${md(W[pi])}주 → ${md(W[li])}주 · 중복=0 · 광고 합계 아래는 상세</div>
+    <div class="note">${md(W[pi])}주 → ${md(W[li])}주 · 중복=0 · 값이 0인 항목은 생략</div>
     <div class="tblwrap">${summary}</div></div>
   <div class="card"><h3>채널별 상담인입 추이 · 수치 표시 (최근 12주)</h3>
     <div class="note">반투명 영역 그래프</div>
     <div style="height:330px"><canvas id="w_area"></canvas></div>
-    <div class="note" style="margin-top:10px">※ 광고=네이버/구글/당근(utm_source 원천) · 기타=MMS/카카오채널메시지/홈페이지 팝업·이벤트/AI검색 ·
-      자연=utm 없음 · 공식블로그·네이버카페·체험단은 비광고 분리 · 중복=0·테스트 제외 기준.</div></div>`;
+    <div class="note" style="margin-top:10px">※ 광고=네이버/구글/당근(utm_source 원천) ·
+      기타=MMS/카카오채널메시지/홈페이지 팝업·이벤트/AI검색/공식블로그/네이버카페/체험단 · 자연=utm 없음 ·
+      공식블로그·카페·체험단은 <b>광고비를 쓰지 않은 유입</b>이라 광고 합계·CPA에서는 빠집니다 · 중복=0·테스트 제외.</div></div>`;
 
-  const chOrder = [...AD_CH, '자연', ...ORG_CH, '기타'].filter(k => C.ch[k] && idx.some(i=>C.ch[k][i]));
+  const bars = DISP_CH.filter(k => k==='기타' ? idx.some(i=>etcAt(i)) : (C.ch[k] && idx.some(i=>C.ch[k][i])));
   mk('w_stack', { type:'bar', data:{ labels:L, datasets:[
-      ...chOrder.map(k => ({ label:k, data: idx.map(i=>C.ch[k][i]), backgroundColor:CC[k]||'#ddd', borderRadius:2, stack:'s', order:3 })),
+      ...bars.map(k => ({ label:k, data: idx.map(i => k==='기타' ? etcAt(i) : C.ch[k][i]),
+        backgroundColor:CC[k]||'#ddd', borderRadius:2, stack:'s', order:3 })),
       { type:'line', label:'상담희망(네+빠른)', data: idx.map(i=>C.ha[i]), borderColor:'#7c3aed',
         backgroundColor:'#7c3aed', tension:.35, pointRadius:3, pointBackgroundColor:'#fff', pointBorderWidth:2, borderWidth:2.5, order:1 },
       { type:'line', label:'0.7↑ 가망', data: idx.map(i=>C.o7[i]), borderColor:'#f59e0b',
         backgroundColor:'#f59e0b', tension:.35, pointRadius:3, pointBackgroundColor:'#fff', pointBorderWidth:2, borderWidth:2.5, order:2 } ]},
     options: baseOpt(true), plugins:[LBL_STACK, LBL_LINE] });
 
-  const areaCh = [...AD_CH, '자연', '기타'].filter(k => C.ch[k] && idx.some(i=>C.ch[k][i]));
-  const rgba = (h,a) => { const v = parseInt(h.replace('#',''),16);
+  const rgba = (h2,a) => { const v = parseInt(h2.replace('#',''),16);
     return `rgba(${(v>>16)&255},${(v>>8)&255},${v&255},${a})`; };
-  mk('w_area', { type:'line', data:{ labels:L, datasets: areaCh.map(k => ({
-      label:k, data: idx.map(i=>C.ch[k][i]), borderColor:CC[k], backgroundColor:rgba(CC[k], .22),
+  mk('w_area', { type:'line', data:{ labels:L, datasets: bars.map(k => ({
+      label:k, data: idx.map(i => k==='기타' ? etcAt(i) : C.ch[k][i]),
+      borderColor:CC[k], backgroundColor:rgba(CC[k], .22),
       fill:'origin', tension:.35, pointRadius:3, pointBackgroundColor:'#fff',
       pointBorderColor:CC[k], pointBorderWidth:2, borderWidth:2 })) },
     options: baseOpt(false), plugins:[LBL_LINE] });
@@ -848,7 +871,7 @@ function wkBiz(){
     </tbody></table>`;
 
   const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map(i=>`<th>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
-    ${list.map(b => `<tr><td>${b}</td>${T10.map(i=>`<td>${BZW[b][key][i]||'<span class="muted">–</span>'}</td>`).join('')}</tr>`).join('')}
+    ${list.map(b => `<tr><td>${b}</td>${T10.map(i=>`<td>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
     <tr class="tot"><td>전체</td>${T10.map(i=>`<td>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
 
   /* 메인업종 채널 카드 */
@@ -876,7 +899,7 @@ function wkBiz(){
   <div class="card"><h3>최근 12주 업종별 상담인입 추이 (스택)</h3>
     <div style="height:330px"><canvas id="b_stack"></canvas></div></div>
   <div class="card"><h3>주차별 상담인입 추이</h3><div class="note">업종별 · 최근 ${T10.length}주</div>
-    <div class="tblwrap">${wkTbl('t', names, '')}</div></div>
+    <div class="tblwrap">${wkTbl('t', names.filter(b=>T10.some(i=>BZW[b].t[i])), '')}</div></div>
   <div class="card"><h3>주차별 상담희망 추이</h3><div class="note">업종별(주요 5개+전체) · 네+빠른 · 최근 ${T10.length}주</div>
     <div class="tblwrap">${wkTbl('a', BIZ5.filter(b=>BZW[b]), '')}</div></div>
   <div class="card"><h3>주차별 0.7↑ 가망 추이</h3><div class="note">업종별(주요 5개+전체) · 최근 ${T10.length}주</div>
@@ -901,7 +924,9 @@ function wk14(){
   const inR = (a,b) => d.map((x,i)=>[x,i]).filter(([x])=>x>=a&&x<=b).map(([,i])=>i);
   const wtd = inR(wkStart, d[last]).reduce((s,i)=>s+Y.tot[i],0);
   const lwtd = inR(wkStart-7, d[last]-7).reduce((s,i)=>s+Y.tot[i],0);
-  const I14 = d.map((_,i)=>i).slice(-14), chs = [...AD_CH,'자연',...ORG_CH,'기타'].filter(c=>Y.ch[c]);
+  const I14 = d.map((_,i)=>i).slice(-14);
+  const dEtc = i => ['기타',...ORG_CH].reduce((s,c)=>s+((Y.ch[c]||[])[i]||0),0);
+  const chs = [...AD_CH,'자연'].filter(c=>Y.ch[c]).concat(I14.some(i=>dEtc(i))?['기타']:[]);
 
   document.getElementById('wkbody').innerHTML = `
   <div class="hint">📌 <b>매일 갱신되는 건 상담인입뿐입니다.</b> 광고비·GA는 수동 적재라 며칠씩 비어 있을 수 있습니다.
@@ -920,11 +945,11 @@ function wk14(){
       ${chs.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>
       ${I14.slice().reverse().map(i=>`<tr><td>${md(d[i])}</td><td style="text-align:left">${dow(d[i])}</td>
         <td><b>${nf(Y.tot[i])}</b></td>
-        ${chs.map(c=>`<td>${Y.ch[c][i] || '<span class="muted">–</span>'}</td>`).join('')}</tr>`).join('')}
+        ${chs.map(c=>`<td>${z0(c==='기타'?dEtc(i):(Y.ch[c]||[])[i])}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div></div>`;
 
   mk('d_ch', { type:'bar', data:{ labels:I14.map(i=>md(d[i])), datasets: chs.map(c => ({
-      label:c, data:I14.map(i=>Y.ch[c][i]), backgroundColor:CC[c]||'#ddd', borderRadius:2 })) },
+      label:c, data:I14.map(i=> c==='기타'?dEtc(i):((Y.ch[c]||[])[i]||0)), backgroundColor:CC[c]||'#ddd', borderRadius:2 })) },
     options: baseOpt(true), plugins:[LBL_STACK] });
 }
 
