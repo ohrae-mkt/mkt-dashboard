@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- build:ga-drill+wk14est+nodup -->
+<!-- build:zero-dash-sweep2 -->
 <title>제로아이즈 마케팅 대시보드</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -350,13 +350,14 @@ function bizTable(){
   const {W, C, li, pi} = D;
   const cols = DISP_CH;
   const names = BIZ9.filter(b => C.bzWk[b]);
-  const cell = (cur, prv) => `${nf(cur)} ${cur!==prv ? dv(cur,prv) : ''}`;
+  const cell = (cur, prv) => cur ? `${nf(cur)} ${cur!==prv ? dv(cur,prv) : ''}`
+    : (prv ? `<span class="muted">–</span> ${dv(0,prv)}` : '<span class="muted">–</span>');
   const rowOf = b => { const e = (C.bzWk[b]||{})[W[li]] || {t:0,o:0,y:0,a:0,ch:{}},
                              p = (C.bzWk[b]||{})[W[pi]] || {t:0,o:0,y:0,a:0,ch:{}};
     return `<tr><td>${b}</td><td>${cell(e.t,p.t)}</td><td>${cell(e.o,p.o)}</td><td>${cell(e.y,p.y)}</td>
       ${cols.map(c => { const mg = c==='기타' ? ETC_MERGE : [c];
         const v = mg.reduce((s,k)=>s+(e.ch[k]||0),0), q = mg.reduce((s,k)=>s+(p.ch[k]||0),0);
-        return `<td>${v ? cell(v,q) : '<span class="muted">–</span>'}</td>`; }).join('')}</tr>`; };
+        return `<td>${cell(v,q)}</td>`; }).join('')}</tr>`; };
   const T = { t:C.tot[li], o:C.o7[li], y:C.hy[li] }, P = { t:C.tot[pi], o:C.o7[pi], y:C.hy[pi] };
   return `<table><thead><tr><th>업종</th><th>전체</th><th>0.7↑</th><th>상담희망</th>
       ${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>
@@ -635,11 +636,11 @@ function vAdChan(){
   <div class="card"><h3>${ch} 주차별 상세</h3>
     <div class="tblwrap"><table><thead><tr><th>주차</th><th>광고비</th><th>노출</th><th>클릭</th>
       <th>CPC</th><th>CTR</th><th>상담인입</th><th>증감</th><th>CPA</th></tr></thead><tbody>
-      ${idx.slice().reverse().map(i => `<tr class="${(i===D.li||i===D.pi)?'':'wold'}"><td>${md(W[i])}${i>D.li?' <span class="muted" style="font-size:10px">진행중</span>':''}</td><td>${nf(c.cost[i])}</td>
-        <td>${nf(c.imp[i])}</td><td>${nf(c.clk[i])}</td><td>${nf(cpc(i))}</td>
+      ${idx.slice().reverse().map(i => `<tr class="${(i===D.li||i===D.pi)?'':'wold'}"><td>${md(W[i])}${i>D.li?' <span class="muted" style="font-size:10px">진행중</span>':''}</td><td>${z0(c.cost[i])}</td>
+        <td>${z0(c.imp[i])}</td><td>${z0(c.clk[i])}</td><td>${z0(cpc(i))}</td>
         <td>${ctr(i)!=null?ctr(i).toFixed(2)+'%':'—'}</td>
-        <td><b>${nf(cvS[i])}</b></td><td>${i>0?dv(cvS[i],cvS[i-1]):'—'}</td>
-        <td>${nf(cpa(i))}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <td><b>${z0(cvS[i])}</b></td><td>${i>0&&(cvS[i]||cvS[i-1])?dv(cvS[i],cvS[i-1]):'<span class="muted">–</span>'}</td>
+        <td>${z0(cpa(i))}</td></tr>`).join('')}</tbody></table></div></div>`;
 
   mk('ch_clk', { type:'bar', data:{ labels:L, datasets:[
       {label:'클릭수', data:idxC.map(i=>c.clk[i]), backgroundColor:CC[ch]+'55', borderRadius:2, order:2},
@@ -725,10 +726,10 @@ function campTable(){
     ${rows.map(r => `<tr><td>${pill(r.m)}</td><td>${r.cp}
         <span class="muted" style="font-size:10px">${r.ty||''}</span></td>
       <td style="text-align:left">${CMAP[r.cp]||'<span class="muted">미분류</span>'}</td>
-      <td>${r.cv ? `<b>${r.cv}</b> ${dv(r.cv, r.cvp)}` : '<span class="muted">0</span>'}</td>
+      <td>${r.cv ? `<b>${r.cv}</b> ${dv(r.cv, r.cvp)}` : (r.cvp ? `<span class="muted">–</span> ${dv(0,r.cvp)}` : '<span class="muted">–</span>')}</td>
       <td>${r.cv ? nf(r.co/r.cv) : '<span class="muted">–</span>'}</td>
-      <td>${nf(r.co)}</td><td>${nf(r.im)}</td><td>${nf(r.ck)}</td>
-      <td>${r.ck?nf(r.co/r.ck):'—'}</td></tr>`).join('')}</tbody></table>
+      <td>${z0(r.co)}</td><td>${z0(r.im)}</td><td>${z0(r.ck)}</td>
+      <td>${r.ck?nf(r.co/r.ck):'<span class="muted">–</span>'}</td></tr>`).join('')}</tbody></table>
     <div class="note" style="margin-top:8px">
       ※ 상담인입은 <b>utm_campaign</b> 기준이라 광고 캠페인명과 붙였습니다
       (<code>260311_qrpass_A</code> ↔ <code>qrpass_A</code> 처럼 앞 날짜는 떼고 매칭).<br>
@@ -748,7 +749,7 @@ function kwTable(){
   if (!rows.length) return '<div class="note">해당 주차 네이버 SA 키워드 데이터가 없습니다.</div>';
   return `<table><thead><tr><th>캠페인</th><th>키워드</th><th>광고비</th><th>노출</th><th>클릭</th><th>CPC</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${r.cp}</td><td style="text-align:left">${r.kw}</td>
-      <td>${nf(r.co)}</td><td>${nf(r.im)}</td><td>${nf(r.ck)}</td><td>${r.ck?nf(r.co/r.ck):'—'}</td></tr>`).join('')}
+      <td>${z0(r.co)}</td><td>${z0(r.im)}</td><td>${z0(r.ck)}</td><td>${r.ck?nf(r.co/r.ck):'<span class="muted">–</span>'}</td></tr>`).join('')}
     <tr class="tot"><td colspan="2">상위 ${rows.length} 합계</td><td>${nf(tot.co)}</td><td>${nf(tot.im)}</td>
       <td>${nf(tot.ck)}</td><td>${tot.ck?nf(tot.co/tot.ck):'—'}</td></tr></tbody></table>
     <div class="note" style="margin-top:8px">※ 키워드 미기록(확장검색 등) <b>${nf(sc)}원 · 클릭 ${nf(sk)}</b>은 위 표에서 빠져 있습니다.</div>`;
@@ -871,7 +872,7 @@ const wkIdx10 = () => { const {W,n} = D; return W.map((_,i)=>i).slice(Math.max(0
 const _row = (label, cur, prv, cls, indent) => {
   const d = cur - prv, p = prv > 0 ? Math.abs(d/prv*100).toFixed(1)+'%' : '—';
   return `<tr class="${cls||''}"><td style="${indent?'padding-left:24px;color:#6b7280':''}">${indent?'└ ':''}${label}</td>
-    <td>${nf(prv)}</td><td><b>${nf(cur)}</b></td>
+    <td>${z0(prv)}</td><td><b>${z0(cur)}</b></td>
     <td>${d===0?'<span class="neu dt">0</span>':`<span class="${d>0?'up':'dn'} dt">${d>0?'+':'−'}${Math.abs(d)}</span>`}</td>
     <td>${d===0?'<span class="neu dt">—</span>':`<span class="${d>0?'up':'dn'} dt">${d>0?'+':'−'}${p}</span>`}</td></tr>`;
 };
@@ -955,24 +956,24 @@ function wkBiz(){
   const sumTbl = `<table><thead><tr><th>업종</th><th>${md(W[pi])}주 (전주)</th><th>${md(W[li])}주</th><th>증감</th>
       <th>상담희망 (비율)</th><th>0.7↑ 가망 (비율)</th></tr></thead><tbody>
     ${names.map(b => { const e = BZW[b], d = e.t[li] - e.t[pi];
-      return `<tr><td>${b}</td><td>${e.t[pi]}</td><td><b>${e.t[li]}</b></td>
+      return `<tr><td>${b}</td><td>${z0(e.t[pi])}</td><td><b>${z0(e.t[li])}</b></td>
         <td>${d===0?'<span class="neu">0</span>':`<span class="${d>0?'up':'dn'}">${d>0?'+':'−'}${Math.abs(d)}</span>`}</td>
         <td>${rat(b,'a')}</td><td>${rat(b,'o')}</td></tr>`; }).join('')}
-    <tr class="tot"><td>전체</td><td>${C.tot[pi]}</td><td>${C.tot[li]}</td>
+    <tr class="tot"><td>전체</td><td>${z0(C.tot[pi])}</td><td>${z0(C.tot[li])}</td>
       <td><span class="${C.tot[li]>=C.tot[pi]?'up':'dn'}">${C.tot[li]-C.tot[pi]>0?'+':''}${C.tot[li]-C.tot[pi]}</span></td>
-      <td>${C.ha[pi]}→<b>${C.ha[li]}</b> <span class="muted">(${pc(C.ha[pi],C.tot[pi])}→${pc(C.ha[li],C.tot[li])})</span></td>
-      <td>${C.o7[pi]}→<b>${C.o7[li]}</b> <span class="muted">(${pc(C.o7[pi],C.tot[pi])}→${pc(C.o7[li],C.tot[li])})</span></td></tr>
+      <td>${z0(C.ha[pi])}→<b>${z0(C.ha[li])}</b> <span class="muted">(${pc(C.ha[pi],C.tot[pi])}→${pc(C.ha[li],C.tot[li])})</span></td>
+      <td>${z0(C.o7[pi])}→<b>${z0(C.o7[li])}</b> <span class="muted">(${pc(C.o7[pi],C.tot[pi])}→${pc(C.o7[li],C.tot[li])})</span></td></tr>
     </tbody></table>`;
 
   const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map((i,j)=>`<th${wcW(i)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
     ${list.map(b => `<tr><td>${b}</td>${T10.map((i,j)=>`<td${wcW(i)}>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
-    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wcW(i)}>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
+    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wcW(i)}>${z0(key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i])}</td>`).join('')}</tr></tbody></table>`;
 
   /* 메인업종 채널 카드 */
   const bizCard = bz => { const e = (C.bzWk[bz]||{}); const cw = e[W[li]]||{t:0,o:0,y:0,a:0,ch:{}}, pw = e[W[pi]]||{t:0,o:0,y:0,a:0,ch:{}};
     const r = (lb, c, p, cls, ind) => { const d = c - p;
       return `<tr class="${cls||''}"><td style="${ind?'padding-left:20px;color:#6b7280':''}">${ind?'└ ':''}${lb}</td>
-        <td>${p}</td><td><b>${c}</b></td>
+        <td>${z0(p)}</td><td><b>${z0(c)}</b></td>
         <td>${d===0?'<span class="neu">0</span>':`<span class="${d>0?'up':'dn'}">${d>0?'+':'−'}${Math.abs(d)}</span>`}</td></tr>`; };
     const ad = o => AD_CH.reduce((s,c)=>s+(o.ch[c]||0),0);
     return `<div class="card" style="margin:0"><h3>${bz}</h3>
