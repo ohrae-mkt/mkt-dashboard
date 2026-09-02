@@ -43,6 +43,13 @@ h1{font-size:20px;margin:0 0 2px}
 .kpi .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:4px 0 2px}
 .kpi .d{font-size:11px;color:var(--dim)}
 .up{color:var(--up);font-weight:700}.dn{color:var(--dn);font-weight:700}.neu{color:var(--dim)}
+/* 증감은 실수치보다 작게 — 주장이 세지 않도록 */
+.dt{font-size:10px;font-weight:600;opacity:.8;margin-left:3px}
+/* 오래된 주차 컬럼은 흐리게 */
+td.wold{color:#aab0be}
+th.wold{color:#c2c7d2}
+tr.wold td{color:#aab0be}
+tr.wold td:first-child{color:#8c93a3}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .card h3{margin:0 0 2px;font-size:14px}
@@ -69,6 +76,16 @@ tbody tr:hover{background:#fafbfd}
 .bizbox{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .bizbox .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .bizbox .hd b{font-size:13px}.bizbox .hd span{font-size:11px;color:var(--dim)}
+.camp{position:relative;transition:.12s}
+.camp:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.07)}
+.camp.t1{border-color:#f59e0b;border-width:2px;background:linear-gradient(180deg,#fffbeb 0%,#fff 42%)}
+.camp.t2{border-color:#94a3b8;border-width:2px;background:linear-gradient(180deg,#f6f8fb 0%,#fff 42%)}
+.camp.t3{border-color:#d8b08c;border-width:2px;background:linear-gradient(180deg,#fdf6f0 0%,#fff 42%)}
+.rk{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
+  border-radius:5px;font-size:10px;color:#fff;margin-right:6px;vertical-align:1px}
+.camp.t1 .rk{background:#f59e0b}.camp.t2 .rk{background:#94a3b8}.camp.t3 .rk{background:#c99366}
+.cmeta{display:flex;gap:11px;font-size:11px;color:var(--dim);flex-wrap:wrap;margin-top:2px}
+.cmeta b{color:var(--ink)}
 
 .gacards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
 .gac{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
@@ -110,11 +127,13 @@ const ymd = s => { const d = sd(s); return d.getUTCFullYear()+'-'+String(d.getUT
 const nf = n => (n==null||!isFinite(n)) ? '—' : Math.round(n).toLocaleString();
 const man = n => (n==null||!isFinite(n)) ? '—' : (n/10000).toFixed(1)+'만';
 const dv = (c,p) => {
-  if (p==null) return '<span class="neu">—</span>';
+  if (p==null) return '<span class="neu dt">—</span>';
   const d = c - p;
-  if (!d) return '<span class="neu">±0</span>';
-  return `<span class="${d>0?'up':'dn'}">${d>0?'▲':'▼'}${Math.abs(d).toLocaleString()}</span>`;
+  if (!d) return '<span class="neu dt">±0</span>';
+  return `<span class="${d>0?'up':'dn'} dt">${d>0?'▲':'▼'}${Math.abs(d).toLocaleString()}</span>`;
 };
+/* 주차 컬럼: 최근 2주만 진하게 */
+const wc = (arr,i) => (i >= arr.length-2 ? '' : ' class="wold"');
 const pct = (a,b) => b>0 ? (a/b*100).toFixed(1)+'%' : '—';
 const CC = { '네이버':'#12b76a','구글':'#3b82f6','당근':'#f97316','자연':'#94a3b8','기타':'#cbd5e1',
              '공식블로그':'#a78bfa','네이버카페':'#22d3ee','체험단':'#f472b6' };
@@ -235,7 +254,7 @@ const baseOpt = (stack, extra={}) => ({
 /* ═══════════════════════════════════════════════════════════
    화면
    ═══════════════════════════════════════════════════════════ */
-let TAB = 'consult', BIZ_RANGE = 'recent', AD_AXIS = 'ch', CRIT = 'all';
+let TAB = 'day', BIZ_RANGE = 'recent', AD_AXIS = 'ch', CRIT = 'all';
 
 function render(){
   const li = D.li, pi = D.pi, W = D.W;
@@ -250,7 +269,7 @@ function render(){
       <div class="fresh">${fr('상담인입')}${fr('광고')}${fr('GA')}</div>
     </div>
     <div class="tabs">
-      ${[['consult','상담인입'],['ad','광고'],['ga','공홈 GA'],['day','주간 요약']]
+      ${[['day','주간 요약'],['consult','상담인입'],['ad','광고'],['ga','공홈 GA']]
         .map(([k,v]) => `<button class="${TAB===k?'on':''}" onclick="go('${k}')">${v}</button>`).join('')}
     </div>
     <div id="body"></div>`;
@@ -530,11 +549,14 @@ function vAdChan(){
   const cpc = i => (c.clk[i] ? c.cost[i]/c.clk[i] : null);
   const ctr = i => (c.imp[i] ? c.clk[i]/c.imp[i]*100 : null);
   /* 이 채널 캠페인들 */
+  /* 카드 수치는 '지난주' 기준 — 20주 합계는 의미가 옅어 순위 보조용으로만 씀 */
   const camps = Object.entries(CAMP.camp).filter(([k]) => k.split('|')[0] === ch)
     .map(([k,v]) => ({k, cp:k.split('|')[1], ty:v.ty, v,
-      cost:idx.reduce((s,i)=>s+v.cost[i],0), cv:idx.reduce((s,i)=>s+v.cv[i],0),
-      clk:idx.reduce((s,i)=>s+v.clk[i],0), imp:idx.reduce((s,i)=>s+v.imp[i],0)}))
-    .filter(x => x.cost > 0).sort((a,b) => b.cost - a.cost);
+      cost:v.cost[li], cv:v.cv[li], clk:v.clk[li],
+      pcost:v.cost[pi], pcv:v.cv[pi], tot:idx.reduce((s,i)=>s+v.cost[i],0)}))
+    .filter(x => x.cost > 0 || x.tot > 0)
+    .sort((a,b) => (b.cost - a.cost) || (b.tot - a.tot));
+  const liveN = camps.filter(x => x.cost > 0).length;
 
   document.getElementById('adbody').innerHTML = `
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -562,24 +584,27 @@ function vAdChan(){
     <div class="card"><h3>${ch} — 상담인입 · CPA</h3><div class="note">막대=상담인입 · 선=CPA(원)</div>
       <div style="height:250px"><canvas id="ch_cv"></canvas></div></div>
   </div>
-  <div class="card"><h3>${ch} 캠페인 (${camps.length}개)</h3>
-    <div class="note">카드를 누르면 아래에 해당 캠페인 추이가 열립니다 · 광고비 순</div>
-    <div class="bizgrid">${camps.map(x => `
-      <div class="bizbox" style="cursor:pointer;${AD_CAMP===x.k?'border-color:'+CC[ch]+';box-shadow:0 0 0 2px '+CC[ch]+'22':''}"
-           onclick="pickCamp('${x.k.replace(/'/g,"\\'")}')">
-        <div class="hd"><b>${x.cp}</b><span>${man(x.cost)}</span></div>
-        <div style="display:flex;gap:12px;font-size:11px;color:var(--dim);flex-wrap:wrap">
-          <span>상담 <b style="color:var(--ink)">${x.cv}</b></span>
-          <span>CPA <b style="color:var(--ink)">${x.cv?nf(x.cost/x.cv):'–'}</b></span>
+  <div class="card"><h3>${ch} 캠페인 <span class="muted" style="font-size:12px">${liveN}개 집행 중 / 전체 ${camps.length}개</span></h3>
+    <div class="note">${md(W[li])}주 기준 수치 · 광고비 상위 3개는 테두리로 표시 · 카드를 누르면 아래에 추이가 열립니다</div>
+    <div class="bizgrid">${camps.map((x,r) => {
+      const top = (x.cost > 0 && r < 3) ? ' t'+(r+1) : '';
+      const dead = x.cost === 0;
+      return `<div class="bizbox camp${top}" style="cursor:pointer;${dead?'opacity:.5;':''}${AD_CAMP===x.k?'box-shadow:0 0 0 2px '+CC[ch]+'55;':''}"
+           onclick="pickCamp('${x.k.replace(/'/g,"\'")}')">
+        <div class="hd"><b>${top?`<span class="rk">${r+1}</span>`:''}${x.cp}</b>
+          <span>${dead?'<span class="muted">지난주 미집행</span>':man(x.cost)}</span></div>
+        <div class="cmeta">
+          <span>상담 <b>${x.cv}</b>${(x.cv||x.pcv)?dv(x.cv,x.pcv):''}</span>
+          <span>CPA <b>${x.cv?nf(x.cost/x.cv):'–'}</b></span>
           <span>클릭 ${nf(x.clk)}</span>
           <span>CPC ${x.clk?nf(x.cost/x.clk):'–'}</span>
           <span class="muted">${x.ty}</span>
-        </div></div>`).join('')}</div>
+        </div></div>`; }).join('')}</div>
     <div id="drill"></div></div>
   <div class="card"><h3>${ch} 주차별 상세</h3>
     <div class="tblwrap"><table><thead><tr><th>주차</th><th>광고비</th><th>노출</th><th>클릭</th>
       <th>CPC</th><th>CTR</th><th>상담인입</th><th>증감</th><th>CPA</th></tr></thead><tbody>
-      ${idx.slice().reverse().map(i => `<tr><td>${md(W[i])}</td><td>${nf(c.cost[i])}</td>
+      ${idx.slice().reverse().map((i,r) => `<tr class="${r>1?'wold':''}"><td>${md(W[i])}</td><td>${nf(c.cost[i])}</td>
         <td>${nf(c.imp[i])}</td><td>${nf(c.clk[i])}</td><td>${nf(cpc(i))}</td>
         <td>${ctr(i)!=null?ctr(i).toFixed(2)+'%':'—'}</td>
         <td><b>${nf(cvS[i])}</b></td><td>${i>0?dv(cvS[i],cvS[i-1]):'—'}</td>
@@ -707,7 +732,9 @@ function vGa(){
   let pi = li - 1; while (pi > 0 && !G.tot.pv[pi]) pi--;
   const lag = li !== D.li;
   const t = G.tot, bounce = i => t.pv[i] ? t.bw[i]/t.pv[i]*100 : null, sess = i => t.pv[i] ? Math.floor(t.sw[i]/t.pv[i]) : null;
-  const cards = Object.keys(G.cards).sort((a,b) => G.cards[b].pv[li] - G.cards[a].pv[li]);
+  const cards = Object.keys(G.cards)
+    .filter(c => G.cards[c].pv[li] || G.cards[c].pv[pi])   /* 방문 0인 페이지는 카드 생략 */
+    .sort((a,b) => G.cards[b].pv[li] - G.cards[a].pv[li]);
   const stale = D.F['GA'] && (parseInt(D.F['GA'].ago)||0) > 7;
 
   document.getElementById('body').innerHTML = `
@@ -729,18 +756,23 @@ function vGa(){
     <div style="height:250px"><canvas id="g_tr"></canvas></div></div>
 
   <div class="card"><h3>페이지별 현황</h3>
-    <div class="note">${md(W[li])}주 기준 · GA 페이지 제목을 T6 기준표 규칙으로 묶었습니다</div>
+    <div class="note">${md(W[li])}주 기준 · 괄호 없는 작은 숫자는 전주(${md(W[pi])}) 대비 · 이탈률은 낮을수록·체류시간은 길수록 초록 · GA 페이지 제목을 T6 기준표 규칙으로 묶었습니다</div>
     <div class="gacards">${cards.map(c => { const g = G.cards[c];
-      const b = g.pv[li] ? (g.bw[li]/g.pv[li]*100).toFixed(1)+'%' : '—';
-      const s = g.pv[li] ? Math.floor(g.sw[li]/g.pv[li])+'초' : '—';
+      const rate = i => g.pv[i] ? g.bw[i]/g.pv[i]*100 : null;
+      const sess = i => g.pv[i] ? Math.floor(g.sw[i]/g.pv[i]) : null;
+      const b = rate(li), bp = rate(pi), s = sess(li), sp = sess(pi);
       const main = GA_MAIN.includes(c);
+      /* 이탈률은 낮을수록 좋음 → 색 반전 */
+      const dBounce = (b!=null && bp!=null) ? (b-bp) : null;
+      const dSess = (s!=null && sp!=null) ? (s-sp) : null;
+      const bad = (d,inv) => d==null||Math.abs(d)<0.05 ? '<span class="neu dt">±0</span>'
+        : `<span class="${(inv? d<0 : d>0)?'up':'dn'} dt">${d>0?'▲':'▼'}${Math.abs(d).toFixed(Math.abs(d)<10?1:0)}</span>`;
       return `<div class="gac" ${main?'':'style="opacity:.72"'}>
         <div class="t">${c}${main?'':' <span class="muted" style="font-size:10px">보조</span>'}</div>
-        <div class="row"><span>방문</span><b>${nf(g.pv[li])}</b></div>
-        <div class="row"><span>전주 대비</span><b>${dv(g.pv[li],g.pv[pi])}</b></div>
-        <div class="row"><span>GA 전환</span><b>${g.cv[li] ? nf(g.cv[li])+'건' : '<span class="muted">해당 없음</span>'}</b></div>
-        <div class="row"><span>이탈률</span><b>${b}</b></div>
-        <div class="row"><span>평균 세션</span><b>${s}</b></div></div>`; }).join('')}</div></div>`;
+        <div class="row"><span>방문수</span><b>${nf(g.pv[li])}${dv(g.pv[li],g.pv[pi])}</b></div>
+        <div class="row"><span>이탈률</span><b>${b!=null?b.toFixed(1)+'%':'—'}${bad(dBounce,true)}</b></div>
+        <div class="row"><span>체류시간</span><b>${s!=null?s+'초':'—'}${bad(dSess,false)}</b></div>
+        </div>`; }).join('')}</div></div>`;
 
   mk('g_tr', { type:'bar', data:{ labels:L, datasets:[
       {type:'bar', label:'방문수', data:t.pv, backgroundColor:'rgba(59,130,246,.25)', borderRadius:3},
@@ -778,8 +810,8 @@ const _row = (label, cur, prv, cls, indent) => {
   const d = cur - prv, p = prv > 0 ? Math.abs(d/prv*100).toFixed(1)+'%' : '—';
   return `<tr class="${cls||''}"><td style="${indent?'padding-left:24px;color:#6b7280':''}">${indent?'└ ':''}${label}</td>
     <td>${nf(prv)}</td><td><b>${nf(cur)}</b></td>
-    <td>${d===0?'<span class="neu">0</span>':`<span class="${d>0?'up':'dn'}">${d>0?'+':'−'}${Math.abs(d)}</span>`}</td>
-    <td>${d===0?'<span class="neu">—</span>':`<span class="${d>0?'up':'dn'}">${d>0?'+':'−'}${p}</span>`}</td></tr>`;
+    <td>${d===0?'<span class="neu dt">0</span>':`<span class="${d>0?'up':'dn'} dt">${d>0?'+':'−'}${Math.abs(d)}</span>`}</td>
+    <td>${d===0?'<span class="neu dt">—</span>':`<span class="${d>0?'up':'dn'} dt">${d>0?'+':'−'}${p}</span>`}</td></tr>`;
 };
 
 /* ── 채널 ── */
@@ -805,11 +837,11 @@ function wkCh(){
     ${rowsHtml}
     ${_row('전체', C.tot[li], C.tot[pi], 'tot')}</tbody></table>`;
 
-  const trTable = `<table><thead><tr><th>채널</th>${T10.map(i=>`<th>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
-    <tr class="grp"><td>광고</td>${T10.map(i=>`<td><b>${adS(i)}</b></td>`).join('')}</tr>
-    <tr><td>자연유입</td>${T10.map(i=>`<td>${z0(natS(i))}</td>`).join('')}</tr>
-    <tr><td>기타(mms·카톡·팝업·블로그 등)</td>${T10.map(i=>`<td>${z0(etcAt(i))}</td>`).join('')}</tr>
-    <tr class="tot"><td>전체</td>${T10.map(i=>`<td>${C.tot[i]}</td>`).join('')}</tr></tbody></table>`;
+  const trTable = `<table><thead><tr><th>채널</th>${T10.map((i,j)=>`<th${wc(T10,j)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
+    <tr class="grp"><td>광고</td>${T10.map((i,j)=>`<td${wc(T10,j)}><b>${adS(i)}</b></td>`).join('')}</tr>
+    <tr><td>자연유입</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(natS(i))}</td>`).join('')}</tr>
+    <tr><td>기타(mms·카톡·팝업·블로그 등)</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(etcAt(i))}</td>`).join('')}</tr>
+    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${C.tot[i]}</td>`).join('')}</tr></tbody></table>`;
 
   document.getElementById('wkbody').innerHTML = `
   <div class="card"><h3>최근 12주 채널별 상담인입(스택) + 상담희망 · 0.7↑ 추이</h3>
@@ -870,9 +902,9 @@ function wkBiz(){
       <td>${C.o7[pi]}→<b>${C.o7[li]}</b> <span class="muted">(${pc(C.o7[pi],C.tot[pi])}→${pc(C.o7[li],C.tot[li])})</span></td></tr>
     </tbody></table>`;
 
-  const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map(i=>`<th>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
-    ${list.map(b => `<tr><td>${b}</td>${T10.map(i=>`<td>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
-    <tr class="tot"><td>전체</td>${T10.map(i=>`<td>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
+  const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map((i,j)=>`<th${wc(T10,j)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
+    ${list.map(b => `<tr><td>${b}</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
+    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
 
   /* 메인업종 채널 카드 */
   const bizCard = bz => { const e = (C.bzWk[bz]||{}); const cw = e[W[li]]||{t:0,o:0,y:0,a:0,ch:{}}, pw = e[W[pi]]||{t:0,o:0,y:0,a:0,ch:{}};
