@@ -78,12 +78,7 @@ tbody tr:hover{background:#fafbfd}
 .bizbox .hd b{font-size:13px}.bizbox .hd span{font-size:11px;color:var(--dim)}
 .camp{position:relative;transition:.12s}
 .camp:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.07)}
-.camp.t1{border-color:#f59e0b;border-width:2px;background:linear-gradient(180deg,#fffbeb 0%,#fff 42%)}
-.camp.t2{border-color:#94a3b8;border-width:2px;background:linear-gradient(180deg,#f6f8fb 0%,#fff 42%)}
-.camp.t3{border-color:#d8b08c;border-width:2px;background:linear-gradient(180deg,#fdf6f0 0%,#fff 42%)}
-.rk{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
-  border-radius:5px;font-size:10px;color:#fff;margin-right:6px;vertical-align:1px}
-.camp.t1 .rk{background:#f59e0b}.camp.t2 .rk{background:#94a3b8}.camp.t3 .rk{background:#c99366}
+.camp.top{border-width:2px}
 .cmeta{display:flex;gap:11px;font-size:11px;color:var(--dim);flex-wrap:wrap;margin-top:2px}
 .cmeta b{color:var(--ink)}
 
@@ -132,8 +127,12 @@ const dv = (c,p) => {
   if (!d) return '<span class="neu dt">±0</span>';
   return `<span class="${d>0?'up':'dn'} dt">${d>0?'▲':'▼'}${Math.abs(d).toLocaleString()}</span>`;
 };
-/* 주차 컬럼: 최근 2주만 진하게 */
-const wc = (arr,i) => (i >= arr.length-2 ? '' : ' class="wold"');
+/* 주차 강조 규칙: 월~일을 다 채운 '마감된' 최근 주와 그 전주만 진하게.
+   진행중인 주는 아직 유효한 주차 수치가 아니므로 흐리게 둔다. */
+const wcW = w => (w === D.li || w === D.pi) ? '' : ' class="wold"';
+/* 추이 차트는 '마감된 주'까지만 — 진행중인 주를 넣으면 마지막 막대가 폭락처럼 보인다 */
+const cutA = a => (a || []).slice(0, D.li + 1);
+const cutL = () => D.W.slice(0, D.li + 1).map(md);
 const pct = (a,b) => b>0 ? (a/b*100).toFixed(1)+'%' : '—';
 const CC = { '네이버':'#12b76a','구글':'#3b82f6','당근':'#f97316','자연':'#94a3b8','기타':'#cbd5e1',
              '공식블로그':'#a78bfa','네이버카페':'#22d3ee','체험단':'#f472b6' };
@@ -243,10 +242,10 @@ function mk(id, cfg){
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, cfg);
 }
-const baseOpt = (stack, extra={}) => ({
+const baseOpt = (stack, extra={}, lbl=null) => ({
   responsive:true, maintainAspectRatio:false,
   interaction:{mode:'index', intersect:false},
-  plugins:{ legend:{ labels:{ boxWidth:9, boxHeight:9, font:{size:11}, usePointStyle:true } } },
+  plugins:{ legend:{ labels:{ boxWidth:9, boxHeight:9, font:{size:11}, usePointStyle:true } }, lbl },
   scales:{ x:{ stacked:stack, ticks:T10, grid:{display:false} },
            y:{ stacked:stack, ticks:T10, grid:GRD, beginAtZero:true }, ...extra }
 });
@@ -323,21 +322,21 @@ function vConsult(){
     </div>
     <div class="bizgrid" id="bizgrid"></div></div>`;
 
-  const L = W.map(md);
+  const L = cutL();
   mk('c_trend', { type:'bar', data:{ labels:L, datasets:[
-      {type:'bar', label:'전체', data:C.tot, backgroundColor:'rgba(109,40,217,.22)', borderRadius:3, order:3},
-      {type:'line', label:'0.7이상', data:C.o7, borderColor:'#0f9c5b', backgroundColor:'#0f9c5b', tension:.35, pointRadius:2, yAxisID:'y1', order:1},
-      {type:'line', label:'상담희망', data:C.ha, borderColor:'#f59e0b', backgroundColor:'#f59e0b', borderDash:[5,4], tension:.35, pointRadius:2, yAxisID:'y1', order:2}
-    ]}, options: baseOpt(false, { y1:{ position:'right', ticks:T10, grid:{display:false}, beginAtZero:true } }), plugins:[LBL_EDGE] });
+      {type:'bar', label:'전체', data:cutA(C.tot), backgroundColor:'rgba(109,40,217,.22)', borderRadius:3, order:3},
+      {type:'line', label:'0.7이상', data:cutA(C.o7), borderColor:'#0f9c5b', backgroundColor:'#0f9c5b', tension:.35, pointRadius:2, yAxisID:'y1', order:1},
+      {type:'line', label:'상담희망', data:cutA(C.ha), borderColor:'#f59e0b', backgroundColor:'#f59e0b', borderDash:[5,4], tension:.35, pointRadius:2, yAxisID:'y1', order:2}
+    ]}, options: baseOpt(false, { y1:{ position:'right', ticks:T10, grid:{display:false}, beginAtZero:true } }, {bars:'total', lines:'edge'}), plugins:[LBL] });
 
   mk('c_ch', { type:'bar', data:{ labels:L, datasets: DISP_CH.filter(k => k==='기타' || C.ch[k]).map(k => ({
-      label:k, data: k==='기타' ? etcSeries() : C.ch[k], backgroundColor:CC[k]||'#ddd', borderRadius:2 })) },
-    options: baseOpt(true), plugins:[LBL_STACK] });
+      label:k, data: cutA(k==='기타' ? etcSeries() : C.ch[k]), backgroundColor:CC[k]||'#ddd', borderRadius:2 })) },
+    options: baseOpt(true, {}, {bars:'total'}), plugins:[LBL] });
 
   mk('c_fm', { type:'line', data:{ labels:L, datasets: Object.keys(C.fm).map((k,i) => ({
-      label:k, data:C.fm[k], borderColor:['#3b82f6','#12b76a','#f59e0b','#a78bfa'][i%4],
+      label:k, data:cutA(C.fm[k]), borderColor:['#3b82f6','#12b76a','#f59e0b','#a78bfa'][i%4],
       backgroundColor:'transparent', tension:.35, pointRadius:2 })) },
-    options: baseOpt(false), plugins:[LBL_LINE] });
+    options: baseOpt(false, {}, {lines:'all'}), plugins:[LBL] });
 
   drawBiz();
 }
@@ -366,8 +365,8 @@ function bizTable(){
 
 function drawBiz(){
   const {W, C, n} = D;
-  const st = BIZ_RANGE === 'recent' ? Math.max(0, n-8) : 0;
-  const idx = W.map((_,i)=>i).slice(st);
+  const st = BIZ_RANGE === 'recent' ? Math.max(0, D.li-7) : 0;
+  const idx = W.map((_,i)=>i).slice(st, D.li+1);
   const names = BIZ9.filter(b => C.bz[b] && C.bz[b].some(v=>v));
   document.getElementById('bizgrid').innerHTML = names.map((b,i) => {
     const sum = idx.reduce((a,j)=>a+(C.bz[b][j]||0),0);
@@ -394,60 +393,74 @@ function _txt(ctx, s, x, y, col, size, bg){
   ctx.fillStyle = col || '#5b6172'; ctx.fillText(s, x, y);
   ctx.restore();
 }
-/* 데이터셋이 막대인지 */
-const _isBar = (c, ds, di) => (ds.type || c.config.type) === 'bar';
-/* 막대 위에 값 */
-const LBL_BAR = { id:'lblBar', afterDatasetsDraw(c){
-  const n = c.data.labels.length, dense = n > 20;
+/* ═══ 차트 수치 라벨 — 충돌 회피 배치 엔진 ═══
+   options.plugins.lbl = { bars:'total'|'each'|null, lines:'all'|'edge'|null }
+   후보를 모두 모아 우선순위(마지막>최고>나머지)대로 놓고,
+   이미 그린 라벨과 겹치면 건너뛴다. */
+const _isBar = (c, ds) => (ds.type || c.config.type) === 'bar';
+const LBL = { id:'lbl', afterDatasetsDraw(c){
+  const cfg = (c.options.plugins && c.options.plugins.lbl) || {};
+  if (!cfg.bars && !cfg.lines) return;
+  const ctx = c.ctx, n = c.data.labels.length, cand = [];
+  const bars = [], lines = [];
   c.data.datasets.forEach((ds,di) => {
-    if (!_isBar(c, ds, di)) return;
     const m = c.getDatasetMeta(di); if (m.hidden) return;
-    m.data.forEach((el,i) => { const v = ds.data[i];
-      if (!v) return;
-      if (dense && i % 2) return;
-      _txt(c.ctx, String(Math.round(v)), el.x, el.y - 2, '#8b90a0', dense ? 9 : 10); });
+    (_isBar(c, ds) ? bars : lines).push({ds, m});
   });
-}};
-/* 누적 막대 총합 — 막대 데이터셋만 합산 */
-const LBL_STACK = { id:'lblStack', afterDatasetsDraw(c){
-  const n = c.data.labels.length, tot = Array(n).fill(0), top = Array(n).fill(1e9);
-  c.data.datasets.forEach((ds,di) => {
-    if (!_isBar(c, ds, di)) return;
-    const m = c.getDatasetMeta(di); if (m.hidden) return;
-    m.data.forEach((el,i) => { const v = +ds.data[i] || 0; tot[i] += v;
-      if (v > 0) top[i] = Math.min(top[i], el.y); }); });
-  const last = n - 1, base = c.data.datasets.findIndex((ds,di) => _isBar(c, ds, di));
-  if (base < 0) return;
-  const bm = c.getDatasetMeta(base);
-  tot.forEach((v,i) => { if (!v || top[i] > 1e8 || !bm.data[i]) return;
-    const isLast = i === last;
-    _txt(c.ctx, String(Math.round(v)), bm.data[i].x, top[i] - 3,
-         isLast ? '#fff' : '#5b6172', isLast ? 10 : 9, isLast ? '#1a1d29' : null); });
-}};
-/* 선 위 값 — 선 데이터셋만 · 흰 배지로 겹침 방지 */
-const LBL_LINE = { id:'lblLine', afterDatasetsDraw(c){
-  const n = c.data.labels.length, dense = n > 20;
-  c.data.datasets.forEach((ds,di) => {
-    if (_isBar(c, ds, di)) return;
-    const m = c.getDatasetMeta(di); if (m.hidden) return;
-    m.data.forEach((el,i) => { const v = ds.data[i];
+
+  if (cfg.bars === 'total' && bars.length){
+    const tot = Array(n).fill(0), top = Array(n).fill(1e9);
+    bars.forEach(({ds,m}) => m.data.forEach((el,i) => {
+      const v = +ds.data[i] || 0; tot[i] += v; if (v > 0) top[i] = Math.min(top[i], el.y); }));
+    tot.forEach((v,i) => { if (!v || top[i] > 1e8) return;
+      const el = bars[0].m.data[i]; if (!el) return;
+      const last = i === n-1;
+      cand.push({ x:el.x, y:top[i]-3, t:String(Math.round(v)), col:last?'#fff':'#4b5162',
+                  bg:last?'#1a1d29':null, size:last?11:10, prio:last?100:(60 - Math.abs(n-1-i)) }); });
+  } else if (cfg.bars === 'each'){
+    bars.forEach(({ds,m}) => m.data.forEach((el,i) => { const v = +ds.data[i] || 0; if (!v) return;
+      cand.push({ x:el.x, y:el.y-3, t:String(Math.round(v)), col:'#7d8394', size:10,
+                  prio: (i===n-1?90:40 - Math.abs(n-1-i)) }); }));
+  }
+
+  if (cfg.lines === 'all'){
+    lines.forEach(({ds,m}) => m.data.forEach((el,i) => { const v = ds.data[i];
       if (v == null || v === 0) return;
-      if (dense && i % 2) return;
-      _txt(c.ctx, String(Math.round(v)), el.x, el.y - 6,
-           ds.borderColor || '#5b6172', dense ? 9 : 10, 'rgba(255,255,255,.88)'); }); });
+      cand.push({ x:el.x, y:el.y-7, t:String(Math.round(v)), col:ds.borderColor||'#4b5162',
+                  bg:'rgba(255,255,255,.9)', size:10, prio:(i===n-1?95:50 - Math.abs(n-1-i)) }); }));
+  } else if (cfg.lines === 'edge'){
+    lines.forEach(({ds,m}) => {
+      const vals = ds.data.map(v => (v == null ? -1 : v));
+      let mx = -1, mi = -1; vals.forEach((v,i) => { if (v > mx){ mx = v; mi = i; } });
+      let li = -1; for (let i = vals.length-1; i >= 0; i--) if (vals[i] > 0){ li = i; break; }
+      [[mi,mx,92],[li,vals[li],96]].forEach(([i,v,pr]) => { if (i < 0 || v <= 0 || !m.data[i]) return;
+        cand.push({ x:m.data[i].x, y:m.data[i].y-6, t:String(Math.round(v)), col:'#fff',
+                    bg:ds.borderColor||'#333', size:10, prio:pr }); }); });
+  }
+
+  cand.sort((a,b) => b.prio - a.prio);
+  const placed = [];
+  const hit = (r) => placed.some(q => !(r.x2 < q.x1 || r.x1 > q.x2 || r.y2 < q.y1 || r.y1 > q.y2));
+  const area = c.chartArea;
+  for (const it of cand){
+    ctx.font = `600 ${it.size}px system-ui,sans-serif`;
+    const w = ctx.measureText(it.t).width, pad = it.bg ? 3 : 1;
+    let y = it.y;
+    const box = () => ({ x1:it.x-w/2-pad-2, x2:it.x+w/2+pad+2, y1:y-it.size-pad-2, y2:y+pad+1 });
+    let r = box(), tries = 0;
+    while (hit(r) && tries < 3){ y -= it.size + 4; r = box(); tries++; }   /* 위로 살짝 띄워 재시도 */
+    if (hit(r)) continue;                                                  /* 그래도 겹치면 생략 */
+    if (r.y1 < area.top - 2) continue;
+    placed.push(r);
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    if (it.bg){ ctx.fillStyle = it.bg;
+      if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(it.x-w/2-pad, y-it.size-pad, w+pad*2, it.size+pad*2, 4); ctx.fill(); }
+      else ctx.fillRect(it.x-w/2-pad, y-it.size-pad, w+pad*2, it.size+pad*2); }
+    ctx.fillStyle = it.col; ctx.fillText(it.t, it.x, y); ctx.restore();
+  }
 }};
-/* 선의 최고점 · 마지막 값만 (배지) */
-const LBL_EDGE = { id:'lblEdge', afterDatasetsDraw(c){
-  c.data.datasets.forEach((ds,di) => { if (_isBar(c, ds, di)) return;
-    const m = c.getDatasetMeta(di); if (m.hidden) return;
-    const vals = ds.data.map(v => (v == null ? -1 : v));
-    let mx = -1, mi = -1;
-    vals.forEach((v,i) => { if (v > mx){ mx = v; mi = i; } });
-    let li = -1; for (let i = vals.length - 1; i >= 0; i--) if (vals[i] > 0){ li = i; break; }
-    [[mi, mx], [li, vals[li]]].forEach(([i,v]) => {
-      if (i < 0 || v <= 0 || !m.data[i]) return;
-      _txt(c.ctx, String(Math.round(v)), m.data[i].x, m.data[i].y - 5, '#fff', 10, ds.borderColor || '#333'); }); });
-}};
+/* 하위호환 별칭 */
+const LBL_BAR = LBL, LBL_STACK = LBL, LBL_LINE = LBL, LBL_EDGE = LBL;
 
 /* ═══ 광고 탭 ═══ */
 let AD_VIEW = 'sum', AD_CHAN = '네이버', AD_RANGE = 'all', AD_CAMP = null;
@@ -467,7 +480,7 @@ function vAd(){
 
 /* ── 종합 ── */
 function vAdSum(){
-  const {W, A, li, pi} = D, L = W.map(md);
+  const {W, A, li, pi} = D, L = cutL();
   const cvOf = (ch,i) => (D.C.ch[ch] ? D.C.ch[ch][i] : 0);
   const cpa = (ch,i) => { const c = A.ch[ch] ? A.ch[ch].cost[i] : 0, v = cvOf(ch,i); return v ? c/v : null; };
   const totCost = i => AD_CH.reduce((s,c) => s + (A.ch[c] ? A.ch[c].cost[i] : 0), 0);
@@ -509,31 +522,31 @@ function vAdSum(){
     document.getElementById('n2').textContent = '채널별 광고비(원)';
     document.getElementById('n3').textContent = '채널 광고비 ÷ 채널 전환';
     mk('a_cv', { type:'line', data:{ labels:L, datasets:[
-        ...AD_CH.map(c => ({label:c, data:D.C.ch[c]||[], borderColor:CC[c], backgroundColor:'transparent', tension:.35, pointRadius:2})),
-        {label:'자연', data:D.C.ch['자연']||[], borderColor:'#94a3b8', borderDash:[5,4], backgroundColor:'transparent', tension:.35, pointRadius:0}
-      ]}, options: baseOpt(false), plugins:[LBL_EDGE] });
+        ...AD_CH.map(c => ({label:c, data:cutA(D.C.ch[c]), borderColor:CC[c], backgroundColor:'transparent', tension:.35, pointRadius:2})),
+        {label:'자연', data:cutA(D.C.ch['자연']), borderColor:'#94a3b8', borderDash:[5,4], backgroundColor:'transparent', tension:.35, pointRadius:0}
+      ]}, options: baseOpt(false, {}, {lines:'edge'}), plugins:[LBL] });
     mk('a_co', { type:'bar', data:{ labels:L, datasets: AD_CH.filter(c=>A.ch[c]).map(c => ({
-        label:c, data:A.ch[c].cost, backgroundColor:CC[c], borderRadius:2 })) },
-      options: baseOpt(true) });
+        label:c, data:cutA(A.ch[c].cost), backgroundColor:CC[c], borderRadius:2 })) },
+      options: baseOpt(true, {}, {bars:'total'}), plugins:[LBL] });
     mk('a_cp', { type:'line', data:{ labels:L, datasets: AD_CH.filter(c=>A.ch[c]).map(c => ({
-        label:c, data: W.map((_,i)=>cpa(c,i)), borderColor:CC[c], backgroundColor:'transparent',
-        tension:.35, pointRadius:2, spanGaps:true })) }, options: baseOpt(false), plugins:[LBL_EDGE] });
+        label:c, data: W.slice(0,li+1).map((_,i)=>cpa(c,i)), borderColor:CC[c], backgroundColor:'transparent',
+        tension:.35, pointRadius:2, spanGaps:true })) }, options: baseOpt(false, {}, {lines:'edge'}), plugins:[LBL] });
   } else {
     document.getElementById('n1').textContent = '업종별 상담인입 (전 채널)';
     document.getElementById('n2').textContent = '업종별 광고비 — 캠페인→업종 매핑(T6 기준표) 적용';
     document.getElementById('n3').textContent = '업종 광고비 ÷ 업종 상담인입 · 두 축이 달라 참고용';
     const bl = BIZ9.filter(b => D.C.bz[b] && D.C.bz[b].some(v=>v)).slice(0,7);
     const pal = ['#3b82f6','#12b76a','#f97316','#a78bfa','#f59e0b','#22d3ee','#f472b6'];
-    mk('a_cv', { type:'line', data:{ labels:L, datasets: bl.map((b,i)=>({label:b, data:D.C.bz[b],
+    mk('a_cv', { type:'line', data:{ labels:L, datasets: bl.map((b,i)=>({label:b, data:cutA(D.C.bz[b]),
         borderColor:pal[i], backgroundColor:'transparent', tension:.35, pointRadius:2})) },
-      options: baseOpt(false), plugins:[LBL_EDGE] });
+      options: baseOpt(false, {}, {lines:'edge'}), plugins:[LBL] });
     const bcKeys = Object.keys(A.bizCost).filter(k => A.bizCost[k].some(v=>v)).slice(0,8);
-    mk('a_co', { type:'bar', data:{ labels:L, datasets: bcKeys.map((b,i)=>({label:b, data:A.bizCost[b],
+    mk('a_co', { type:'bar', data:{ labels:L, datasets: bcKeys.map((b,i)=>({label:b, data:cutA(A.bizCost[b]),
         backgroundColor:pal[i%pal.length], borderRadius:2})) }, options: baseOpt(true) });
     mk('a_cp', { type:'line', data:{ labels:L, datasets: bl.filter(b=>A.bizCost[b]).map((b,i)=>({label:b,
-        data: W.map((_,j)=> (D.C.bz[b][j] ? A.bizCost[b][j]/D.C.bz[b][j] : null)),
+        data: W.slice(0,li+1).map((_,j)=> (D.C.bz[b][j] ? A.bizCost[b][j]/D.C.bz[b][j] : null)),
         borderColor:pal[i], backgroundColor:'transparent', tension:.35, pointRadius:2, spanGaps:true})) },
-      options: baseOpt(false), plugins:[LBL_EDGE] });
+      options: baseOpt(false, {}, {lines:'edge'}), plugins:[LBL] });
   }
 }
 
@@ -541,7 +554,9 @@ function vAdSum(){
 function vAdChan(){
   const {W, A, li, pi, n} = D;
   const st = AD_RANGE === 'all' ? 0 : Math.max(0, n - 20);
-  const idx = W.map((_,i)=>i).slice(st), L = idx.map(i => md(W[i]));
+  const idx = W.map((_,i)=>i).slice(st);
+  const idxC = idx.filter(i => i <= li);   /* 차트용 = 마감된 주까지 */
+  const L = idxC.map(i => md(W[i]));
   const ch = AD_CHAN, c = A.ch[ch] || {cost:[], clk:[], imp:[]};
   const cvS = D.C.ch[ch] || [];
   const sum = a => idx.reduce((s,i) => s + (a[i]||0), 0);
@@ -585,13 +600,13 @@ function vAdChan(){
       <div style="height:250px"><canvas id="ch_cv"></canvas></div></div>
   </div>
   <div class="card"><h3>${ch} 캠페인 <span class="muted" style="font-size:12px">${liveN}개 집행 중 / 전체 ${camps.length}개</span></h3>
-    <div class="note">${md(W[li])}주 기준 수치 · 광고비 상위 3개는 테두리로 표시 · 카드를 누르면 아래에 추이가 열립니다</div>
+    <div class="note">${md(W[li])}주 기준 수치 · 광고비 상위 3개는 ${ch} 색 테두리 · 카드를 누르면 아래에 추이가 열립니다</div>
     <div class="bizgrid">${camps.map((x,r) => {
-      const top = (x.cost > 0 && r < 3) ? ' t'+(r+1) : '';
+      const top = (x.cost > 0 && r < 3);
       const dead = x.cost === 0;
-      return `<div class="bizbox camp${top}" style="cursor:pointer;${dead?'opacity:.5;':''}${AD_CAMP===x.k?'box-shadow:0 0 0 2px '+CC[ch]+'55;':''}"
+      return `<div class="bizbox camp${top?' top':''}" style="cursor:pointer;${dead?'opacity:.5;':''}${top?'border-color:'+CC[ch]+';':''}${AD_CAMP===x.k?'box-shadow:0 0 0 2px '+CC[ch]+'55;':''}"
            onclick="pickCamp('${x.k.replace(/'/g,"\'")}')">
-        <div class="hd"><b>${top?`<span class="rk">${r+1}</span>`:''}${x.cp}</b>
+        <div class="hd"><b>${x.cp}</b>
           <span>${dead?'<span class="muted">지난주 미집행</span>':man(x.cost)}</span></div>
         <div class="cmeta">
           <span>상담 <b>${x.cv}</b>${(x.cv||x.pcv)?dv(x.cv,x.pcv):''}</span>
@@ -604,24 +619,24 @@ function vAdChan(){
   <div class="card"><h3>${ch} 주차별 상세</h3>
     <div class="tblwrap"><table><thead><tr><th>주차</th><th>광고비</th><th>노출</th><th>클릭</th>
       <th>CPC</th><th>CTR</th><th>상담인입</th><th>증감</th><th>CPA</th></tr></thead><tbody>
-      ${idx.slice().reverse().map((i,r) => `<tr class="${r>1?'wold':''}"><td>${md(W[i])}</td><td>${nf(c.cost[i])}</td>
+      ${idx.slice().reverse().map(i => `<tr class="${(i===D.li||i===D.pi)?'':'wold'}"><td>${md(W[i])}${i>D.li?' <span class="muted" style="font-size:10px">진행중</span>':''}</td><td>${nf(c.cost[i])}</td>
         <td>${nf(c.imp[i])}</td><td>${nf(c.clk[i])}</td><td>${nf(cpc(i))}</td>
         <td>${ctr(i)!=null?ctr(i).toFixed(2)+'%':'—'}</td>
         <td><b>${nf(cvS[i])}</b></td><td>${i>0?dv(cvS[i],cvS[i-1]):'—'}</td>
         <td>${nf(cpa(i))}</td></tr>`).join('')}</tbody></table></div></div>`;
 
   mk('ch_clk', { type:'bar', data:{ labels:L, datasets:[
-      {label:'클릭수', data:idx.map(i=>c.clk[i]), backgroundColor:CC[ch]+'55', borderRadius:2, order:2},
-      {type:'line', label:'CPC', data:idx.map(i=>cpc(i)), borderColor:CC[ch], backgroundColor:'transparent',
+      {label:'클릭수', data:idxC.map(i=>c.clk[i]), backgroundColor:CC[ch]+'55', borderRadius:2, order:2},
+      {type:'line', label:'CPC', data:idxC.map(i=>cpc(i)), borderColor:CC[ch], backgroundColor:'transparent',
        tension:.3, pointRadius:2, yAxisID:'y1', order:1, spanGaps:true} ]},
-    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }),
-    plugins:[LBL_BAR] });
+    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }, {bars:'each', lines:'edge'}),
+    plugins:[LBL] });
   mk('ch_cv', { type:'bar', data:{ labels:L, datasets:[
-      {label:'상담인입', data:idx.map(i=>cvS[i]||0), backgroundColor:CC[ch], borderRadius:2, order:2},
-      {type:'line', label:'CPA', data:idx.map(i=>cpa(i)), borderColor:'#ef4444', backgroundColor:'transparent',
+      {label:'상담인입', data:idxC.map(i=>cvS[i]||0), backgroundColor:CC[ch], borderRadius:2, order:2},
+      {type:'line', label:'CPA', data:idxC.map(i=>cpa(i)), borderColor:'#ef4444', backgroundColor:'transparent',
        tension:.3, pointRadius:2, yAxisID:'y1', order:1, spanGaps:true} ]},
-    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }),
-    plugins:[LBL_BAR] });
+    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }, {bars:'each', lines:'edge'}),
+    plugins:[LBL] });
 
   if (AD_CAMP && CAMP.camp[AD_CAMP]){
     const v = CAMP.camp[AD_CAMP], cp = AD_CAMP.split('|')[1];
@@ -634,16 +649,15 @@ function vAdChan(){
           <div style="height:220px"><canvas id="dr_b"></canvas></div>
         </div></div>`;
     mk('dr_a', { type:'bar', data:{ labels:L, datasets:[
-        {label:'광고비', data:idx.map(i=>v.cost[i]), backgroundColor:CC[ch]+'55', borderRadius:2, order:2},
-        {type:'line', label:'CPC', data:idx.map(i=>v.clk[i]?v.cost[i]/v.clk[i]:null), borderColor:CC[ch],
+        {label:'광고비', data:idxC.map(i=>v.cost[i]), backgroundColor:CC[ch]+'55', borderRadius:2, order:2},
+        {type:'line', label:'CPC', data:idxC.map(i=>v.clk[i]?v.cost[i]/v.clk[i]:null), borderColor:CC[ch],
          backgroundColor:'transparent', tension:.3, pointRadius:2, yAxisID:'y1', order:1, spanGaps:true} ]},
-      options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }) });
+      options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }, {bars:'each'}), plugins:[LBL] });
     mk('dr_b', { type:'bar', data:{ labels:L, datasets:[
-        {label:'상담인입', data:idx.map(i=>v.cv[i]), backgroundColor:'#6d28d9', borderRadius:2, order:2},
-        {type:'line', label:'CPA', data:idx.map(i=>v.cv[i]?v.cost[i]/v.cv[i]:null), borderColor:'#ef4444',
+        {label:'상담인입', data:idxC.map(i=>v.cv[i]), backgroundColor:'#6d28d9', borderRadius:2, order:2},
+        {type:'line', label:'CPA', data:idxC.map(i=>v.cv[i]?v.cost[i]/v.cv[i]:null), borderColor:'#ef4444',
          backgroundColor:'transparent', tension:.3, pointRadius:2, yAxisID:'y1', order:1, spanGaps:true} ]},
-      options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }),
-      plugins:[LBL_BAR] });
+      options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }, {bars:'each'}), plugins:[LBL] });
   }
 }
 
@@ -726,7 +740,7 @@ function kwTable(){
 
 /* ── 3. 공홈 GA ── */
 function vGa(){
-  const {W, G} = D, L = W.map(md);
+  const {W, G} = D, L = cutL();
   /* GA는 적재가 늦어 지난주에 값이 없을 수 있음 → 데이터가 있는 마지막 주를 기준으로 */
   let li = D.li; while (li > 0 && !G.tot.pv[li]) li--;
   let pi = li - 1; while (pi > 0 && !G.tot.pv[pi]) pi--;
@@ -775,10 +789,10 @@ function vGa(){
         </div>`; }).join('')}</div></div>`;
 
   mk('g_tr', { type:'bar', data:{ labels:L, datasets:[
-      {type:'bar', label:'방문수', data:t.pv, backgroundColor:'rgba(59,130,246,.25)', borderRadius:3},
-      {type:'line', label:'GA 전환', data:t.cv, borderColor:'#12b76a', backgroundColor:'transparent',
+      {type:'bar', label:'방문수', data:cutA(t.pv), backgroundColor:'rgba(59,130,246,.25)', borderRadius:3},
+      {type:'line', label:'GA 전환', data:cutA(t.cv), borderColor:'#12b76a', backgroundColor:'transparent',
        tension:.35, pointRadius:2, yAxisID:'y1'} ]},
-    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }), plugins:[LBL_EDGE] });
+    options: baseOpt(false, { y1:{position:'right', ticks:T10, grid:{display:false}, beginAtZero:true} }, {bars:'total', lines:'edge'}), plugins:[LBL] });
 }
 
 /* ── 4. 주간 요약 (채널 · 업종 · 최근 14일) ── */
@@ -837,11 +851,11 @@ function wkCh(){
     ${rowsHtml}
     ${_row('전체', C.tot[li], C.tot[pi], 'tot')}</tbody></table>`;
 
-  const trTable = `<table><thead><tr><th>채널</th>${T10.map((i,j)=>`<th${wc(T10,j)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
-    <tr class="grp"><td>광고</td>${T10.map((i,j)=>`<td${wc(T10,j)}><b>${adS(i)}</b></td>`).join('')}</tr>
-    <tr><td>자연유입</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(natS(i))}</td>`).join('')}</tr>
-    <tr><td>기타(mms·카톡·팝업·블로그 등)</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(etcAt(i))}</td>`).join('')}</tr>
-    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${C.tot[i]}</td>`).join('')}</tr></tbody></table>`;
+  const trTable = `<table><thead><tr><th>채널</th>${T10.map((i,j)=>`<th${wcW(i)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
+    <tr class="grp"><td>광고</td>${T10.map((i,j)=>`<td${wcW(i)}><b>${adS(i)}</b></td>`).join('')}</tr>
+    <tr><td>자연유입</td>${T10.map((i,j)=>`<td${wcW(i)}>${z0(natS(i))}</td>`).join('')}</tr>
+    <tr><td>기타(mms·카톡·팝업·블로그 등)</td>${T10.map((i,j)=>`<td${wcW(i)}>${z0(etcAt(i))}</td>`).join('')}</tr>
+    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wcW(i)}>${C.tot[i]}</td>`).join('')}</tr></tbody></table>`;
 
   document.getElementById('wkbody').innerHTML = `
   <div class="card"><h3>최근 12주 채널별 상담인입(스택) + 상담희망 · 0.7↑ 추이</h3>
@@ -867,7 +881,7 @@ function wkCh(){
         backgroundColor:'#7c3aed', tension:.35, pointRadius:3, pointBackgroundColor:'#fff', pointBorderWidth:2, borderWidth:2.5, order:1 },
       { type:'line', label:'0.7↑ 가망', data: idx.map(i=>C.o7[i]), borderColor:'#f59e0b',
         backgroundColor:'#f59e0b', tension:.35, pointRadius:3, pointBackgroundColor:'#fff', pointBorderWidth:2, borderWidth:2.5, order:2 } ]},
-    options: baseOpt(true), plugins:[LBL_STACK, LBL_LINE] });
+    options: baseOpt(true, {}, {bars:'total', lines:'all'}), plugins:[LBL] });
 
   const rgba = (h2,a) => { const v = parseInt(h2.replace('#',''),16);
     return `rgba(${(v>>16)&255},${(v>>8)&255},${v&255},${a})`; };
@@ -876,7 +890,7 @@ function wkCh(){
       borderColor:CC[k], backgroundColor:rgba(CC[k], .22),
       fill:'origin', tension:.35, pointRadius:3, pointBackgroundColor:'#fff',
       pointBorderColor:CC[k], pointBorderWidth:2, borderWidth:2 })) },
-    options: baseOpt(false), plugins:[LBL_LINE] });
+    options: baseOpt(false, {}, {lines:'all'}), plugins:[LBL] });
 }
 
 /* ── 업종 ── */
@@ -902,9 +916,9 @@ function wkBiz(){
       <td>${C.o7[pi]}→<b>${C.o7[li]}</b> <span class="muted">(${pc(C.o7[pi],C.tot[pi])}→${pc(C.o7[li],C.tot[li])})</span></td></tr>
     </tbody></table>`;
 
-  const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map((i,j)=>`<th${wc(T10,j)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
-    ${list.map(b => `<tr><td>${b}</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
-    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wc(T10,j)}>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
+  const wkTbl = (key, list, title) => `<table><thead><tr><th>업종</th>${T10.map((i,j)=>`<th${wcW(i)}>${md(W[i])}주</th>`).join('')}</tr></thead><tbody>
+    ${list.map(b => `<tr><td>${b}</td>${T10.map((i,j)=>`<td${wcW(i)}>${z0(BZW[b][key][i])}</td>`).join('')}</tr>`).join('')}
+    <tr class="tot"><td>전체</td>${T10.map((i,j)=>`<td${wcW(i)}>${key==='t'?C.tot[i]:key==='a'?C.ha[i]:C.o7[i]}</td>`).join('')}</tr></tbody></table>`;
 
   /* 메인업종 채널 카드 */
   const bizCard = bz => { const e = (C.bzWk[bz]||{}); const cw = e[W[li]]||{t:0,o:0,y:0,a:0,ch:{}}, pw = e[W[pi]]||{t:0,o:0,y:0,a:0,ch:{}};
@@ -945,7 +959,7 @@ function wkBiz(){
   const bl = Object.keys(BZW).filter(b => idx.some(i => BZW[b].t[i]));
   mk('b_stack', { type:'bar', data:{ labels:L, datasets: bl.map(b => ({
       label:b, data: idx.map(i=>BZW[b].t[i]), backgroundColor:BC[b]||'#ddd', borderRadius:2, stack:'s' })) },
-    options: baseOpt(true), plugins:[LBL_STACK] });
+    options: baseOpt(true, {}, {bars:'total'}), plugins:[LBL] });
 }
 
 /* ── 최근 14일 ── */
@@ -982,7 +996,7 @@ function wk14(){
 
   mk('d_ch', { type:'bar', data:{ labels:I14.map(i=>md(d[i])), datasets: chs.map(c => ({
       label:c, data:I14.map(i=> c==='기타'?dEtc(i):((Y.ch[c]||[])[i]||0)), backgroundColor:CC[c]||'#ddd', borderRadius:2 })) },
-    options: baseOpt(true), plugins:[LBL_STACK] });
+    options: baseOpt(true, {}, {bars:'total'}), plugins:[LBL] });
 }
 
 /* ═══════════════════════════════════════════════════════════
