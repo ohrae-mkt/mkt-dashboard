@@ -966,7 +966,8 @@ function wkRep(){
       <tr class="tot"><td>자연 비중</td>${ks.map(k=>`<td${old(k)}>${rate(natIn(M[k]),M[k].tot).toFixed(1)}%</td>`).join('')}</tr>
     </tbody></table></div></div>
 
-  <div class="card"><h3>⑦ 페이지별 방문 품질</h3><div class="note">${ml(cur)} GA · 방문·이탈률·체류시간 <span class="muted">※ 페이지 제목 개편분은 '기타'로 분류됩니다</span></div>
+  <div class="card"><h3>⑦ 페이지별 방문 품질</h3><div class="note">${ml(cur)} GA · 방문·이탈률·체류시간 <span class="muted">※ 페이지 제목 개편분은 '기타'로 분류됩니다</span>
+      <div class="muted" style="margin-top:3px">⚠ 이탈률·체류시간은 8/5부터 GA 원본 CSV 기준입니다. 그 이전(시트 적재분)과 산출 기준이 달라 <b>월간 비교는 하지 마세요</b> — 방문수·전환은 기준이 같아 비교 가능합니다.</div></div>
     <div class="tblwrap"><table><thead><tr><th>페이지</th><th>${ml(prv)} 방문</th><th>${ml(cur)} 방문</th><th>증감</th><th>이탈률</th><th>체류</th></tr></thead><tbody>
       <tr class="tot"><td>전체</td><td>${nf(P.ga.pv)}</td><td><b>${nf(A.ga.pv)}</b></td><td>${d1(A.ga.pv,P.ga.pv)}</td>
         <td>${bounce(A).toFixed(1)}%</td><td>${sess(A)}초</td></tr>
@@ -1018,8 +1019,8 @@ function vDay(){
 
 /* 공통 헬퍼 */
 const _g = (a,i) => (a && a[i] != null ? a[i] : 0);
-const wkIdx12 = () => { const {W,n} = D; return W.map((_,i)=>i).slice(Math.max(0,n-13), n-1); };
-const wkIdx10 = () => { const {W,n} = D; return W.map((_,i)=>i).slice(Math.max(0,n-11), n-1); };
+const wkIdx12 = () => { const {W,li} = D; return W.map((_,i)=>i).slice(Math.max(0,li-11), li+1); };
+const wkIdx10 = () => { const {W,li} = D; return W.map((_,i)=>i).slice(Math.max(0,li-9), li+1); };
 const _row = (label, cur, prv, cls, indent) => {
   const d = cur - prv, p = prv > 0 ? Math.abs(d/prv*100).toFixed(1)+'%' : '—';
   return `<tr class="${cls||''}"><td style="${indent?'padding-left:24px;color:#6b7280':''}">${indent?'└ ':''}${label}</td>
